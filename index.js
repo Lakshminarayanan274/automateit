@@ -8,6 +8,7 @@ const mqtt = require("mqtt");
 const http = require("http");
 const { Server } = require("socket.io");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -73,6 +74,39 @@ const Device = mongoose.model("Device", deviceSchema);
 // ==========================
 
 // ====== HELPERS ======
+// ====== EMAIL SENDER (using SMTP) ======
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: false, // TLS will be upgraded with STARTTLS
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+const EMAIL_FROM = process.env.EMAIL_FROM || "AutomateIT <no-reply@automateit.local>";
+
+async function sendEmail(to, subject, text, html) {
+  if (!process.env.SMTP_HOST) {
+    console.log("📧 [DEV] No SMTP configured, would send email to", to);
+    console.log("Subject:", subject);
+    console.log("Text:", text);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    text,
+    html: html || `<p>${text}</p>`,
+  });
+
+  console.log(`📧 Email sent to ${to}: ${subject}`);
+}
+// =======================================
+
 function generateSixDigitCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -136,10 +170,16 @@ app.post("/auth/register", async (req, res) => {
       verificationCodeExpires,
     });
 
-    // TODO: send email with this verificationCode to user.email
-    console.log(
-      `📧 [DEV] Verification code for ${email}: ${verificationCode}`
-    );
+  // Send verification email
+await sendEmail(
+  email,
+  "Verify your AutomateIT account",
+  `Your verification code is ${verificationCode}. It expires in 15 minutes.`,
+  `<p>Hi,</p>
+   <p>Your AutomateIT verification code is <b>${verificationCode}</b>.</p>
+   <p>This code will expire in 15 minutes.</p>`
+);
+
 
     res.json({
       message:
@@ -265,8 +305,15 @@ app.post("/auth/request-otp", async (req, res) => {
     user.loginOtpExpires = addMinutes(new Date(), 10); // 10 mins
     await user.save();
 
-    // TODO: send email with otp
-    console.log(`📧 [DEV] Login OTP for ${email}: ${otp}`);
+await sendEmail(
+  email,
+  "Your AutomateIT login OTP",
+  `Your login OTP is ${otp}. It expires in 10 minutes.`,
+  `<p>Hi,</p>
+   <p>Your AutomateIT login OTP is <b>${otp}</b>.</p>
+   <p>This code will expire in 10 minutes.</p>`
+);
+
 
     res.json({
       message:
@@ -350,10 +397,17 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     const resetLink = `https://your-app-url/reset-password?token=${resetToken}`;
 
-    // TODO: send email with resetLink
-    console.log(
-      `📧 [DEV] Password reset link for ${email}: ${resetLink}`
-    );
+  await sendEmail(
+  email,
+  "Reset your AutomateIT password",
+  `Click the following link to reset your password: ${resetLink}\n\nIf you did not request this, you can ignore this email.`,
+  `<p>Hi,</p>
+   <p>You requested a password reset for your AutomateIT account.</p>
+   <p>Click this link to reset your password:</p>
+   <p><a href="${resetLink}">${resetLink}</a></p>
+   <p>If you did not request this, you can safely ignore this email.</p>`
+);
+
 
     res.json({
       message:
