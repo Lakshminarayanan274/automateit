@@ -74,51 +74,17 @@ const Device = mongoose.model("Device", deviceSchema);
 
 // ====== HELPERS ======
 
-// ====== EMAIL SENDER (Resend API) ======
-const EMAIL_FROM =
-  process.env.EMAIL_FROM || "AutomateIT <no-reply@automateit.local>";
+// 🔔 DEV-ONLY "EMAIL" (JUST LOGGING, NO REAL SEND)
+const EMAIL_FROM = "AutomateIT <dev-mode@automateit.local>";
 
 async function sendEmail(to, subject, text, html) {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    // Dev fallback if not configured
-    console.log("📧 [DEV] RESEND_API_KEY not set, would send email:");
-    console.log("To:", to);
-    console.log("Subject:", subject);
-    console.log("Text:", text);
-    return;
-  }
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM,
-        to: [to],
-        subject,
-        html: html || `<p>${text}</p>`,
-        text,
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      console.error("📧 Resend API error:", res.status, body);
-      throw new Error(`Resend API error: ${res.status}`);
-    }
-
-    const data = await res.json();
-    console.log(`📧 Resend: email sent to ${to}, id=${data.id}`);
-  } catch (err) {
-    console.error("📧 Resend sendEmail failed:", err.message);
-  }
+  console.log("📧 [DEV MODE] Would send email:");
+  console.log("From:", EMAIL_FROM);
+  console.log("To:", to);
+  console.log("Subject:", subject);
+  console.log("Text:", text);
+  // No real email sending in dev mode
 }
-// =======================================
 
 function generateSixDigitCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -183,7 +149,7 @@ app.post("/auth/register", async (req, res) => {
       verificationCodeExpires,
     });
 
-    // Send verification email
+    // DEV "email" log
     await sendEmail(
       email,
       "Verify your AutomateIT account",
@@ -194,7 +160,7 @@ app.post("/auth/register", async (req, res) => {
     );
 
     res.json({
-      message: "User registered. Please verify your email using the code sent.",
+      message: "User registered. Please verify your email using the code.",
       devVerificationCode: verificationCode, // for dev/testing
     });
   } catch (err) {
@@ -303,7 +269,7 @@ app.post("/auth/request-otp", async (req, res) => {
       // Don't reveal user existence
       return res.json({
         message:
-          "If this email is registered, an OTP has been sent (check your email).",
+          "If this email is registered, an OTP has been generated (dev mode).",
       });
     }
 
@@ -326,8 +292,8 @@ app.post("/auth/request-otp", async (req, res) => {
     );
 
     res.json({
-      message:
-        "If this email is registered, an OTP has been sent (check your email).",
+      message: "OTP generated (DEV MODE - no real email sent).",
+      devOtp: otp,
     });
   } catch (err) {
     console.error("Request OTP error:", err.message);
@@ -396,7 +362,7 @@ app.post("/auth/forgot-password", async (req, res) => {
     if (!user) {
       return res.json({
         message:
-          "If this email is registered, a reset link has been sent (check your email).",
+          "If this email is registered, a reset token has been generated (dev mode).",
       });
     }
 
@@ -419,8 +385,8 @@ app.post("/auth/forgot-password", async (req, res) => {
     );
 
     res.json({
-      message:
-        "If this email is registered, a reset link has been sent (check your email).",
+      message: "Reset token generated (DEV MODE - no real email sent).",
+      devResetToken: resetToken,
     });
   } catch (err) {
     console.error("Forgot password error:", err.message);
